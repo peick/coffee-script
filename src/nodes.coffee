@@ -260,6 +260,41 @@ exports.Block = class Block extends Base
       prelude = "#{@compileNode merge(o, indent: '')}\n" if preludeExps.length
       @expressions = rest
     code = @compileWithDeclarations o
+    if o.google
+      provides = o.google.provides
+      provides.sort()
+      providesJs = ("goog.provide('#{name}');" for name in provides)
+      providesJs = providesJs.join '\n'
+
+      includes = o.google.includes
+      comparator = (a, b) -> a.name.localeCompare(b.name)
+      includes.sort comparator
+      # Sometimes a file may try to both provide and require the same namespace,
+      # e.g., a class and its subclass are declared in the same file. When this
+      # happens, the goog.require() statement should not be included, though it
+      # may have an alias within the goog.scope() call.
+      includesJs = ("goog.require('#{inc.name}');" for inc in includes \
+          when provides.indexOf(inc.name) == -1)
+      includesJs = includesJs.join '\n'
+
+      aliases = (inc for inc in includes when inc.alias)
+      aliases.sort comparator
+      idt = @tab + TAB
+      aliases = ("#{idt}var #{inc.alias} = #{inc.name};" for inc in aliases)
+      aliases = aliases.join '\n'
+
+      code = """
+             #{providesJs}
+
+             #{includesJs}
+
+             goog.scope(function() {
+             #{aliases}
+             #{code}
+
+             }); // close goog.scope()
+             """
+
     return code if o.bare
     "#{prelude}(function() {\n#{code}\n}).call(this);\n"
 
@@ -500,7 +535,18 @@ exports.Call = class Call extends Base
     throw SyntaxError 'cannot call super outside of a function.' unless method
     {name} = method
     throw SyntaxError 'cannot call super on an anonymous function.' unless name?
-    if method.klass
+    if o.google
+      if method.klass
+        (new Value (new Literal method.klass), [new Access(new Literal "superClass_"), new Access new Literal name]).compile o
+      else if method.ctorParent
+        # This is a call to the superclass constructor.
+        # Although the technique used by CoffeeScript (__super__.constructor)
+        # should also work for Closure, we use a slightly different style for
+        # consistency with existing Closure Library code.
+        method.ctorParent.compile o
+      else
+        throw SyntaxError "super() called without a parent class"
+    else if method.klass
       accesses = [new Access(new Literal '__super__')]
       accesses.push new Access new Literal 'constructor' if method.static
       accesses.push new Access new Literal name
@@ -616,7 +662,12 @@ exports.Extends = class Extends extends Base
 
   # Hooks one constructor into another's prototype chain.
   compile: (o) ->
-    new Call(new Value(new Literal utility 'extends'), [@child, @parent]).compile o
+    if o.google
+      inheritsFunction = new Value(new Literal 'goog.inherits')
+    else
+      inheritsFunction = new Value(new Literal utility 'extends')
+    new Call(inheritsFunction, [@child, @parent]).compile o
+    #new Call(new Value(new Literal utility 'extends'), [@child, @parent]).compile o
 
 #### Access
 
@@ -856,8 +907,9 @@ exports.Class = class Class extends Base
   children: ['variable', 'parent', 'body']
 
   # Figure out the appropriate name for the constructor function of this class.
-  determineName: ->
+  determineName: (o) ->
     return null unless @variable
+    return @variable.compile o if o.google
     decl = if tail = last @variable.properties
       tail instanceof Access and tail.name.value
     else
@@ -939,22 +991,25 @@ exports.Class = class Class extends Base
 
   # Make sure that a constructor is defined for the class, and properly
   # configured.
-  ensureConstructor: (name) ->
+  ensureConstructor: (name, o) ->
     if not @ctor
       @ctor = new Code
-      @ctor.body.push new Literal "#{name}.__super__.constructor.apply(this, arguments)" if @parent
-      @ctor.body.push new Literal "#{@externalCtor}.apply(this, arguments)" if @externalCtor
-      @ctor.body.makeReturn()
+      unless o.google
+        @ctor.body.push new Literal "#{name}.__super__.constructor.apply(this, arguments)" if @parent
+        @ctor.body.push new Literal "#{@externalCtor}.apply(this, arguments)" if @externalCtor
+        @ctor.body.makeReturn()
       @body.expressions.unshift @ctor
     @ctor.ctor     = @ctor.name = name
     @ctor.klass    = null
     @ctor.noReturn = yes
+    # This is added for the benefit of --google.
+    @ctor.ctorParent = @parent
 
   # Instead of generating the JavaScript string directly, we build up the
   # equivalent syntax tree and compile that, in pieces. You can see the
   # constructor, property assignments, and inheritance getting built out below.
   compileNode: (o) ->
-    decl  = @determineName()
+    decl  = @determineName o
     name  = decl or '_Class'
     name = "_#{name}" if name.reserved
     lname = new Literal name
@@ -962,12 +1017,12 @@ exports.Class = class Class extends Base
     @hoistDirectivePrologue()
     @setContext name
     @walkBody name, o
-    @ensureConstructor name
+    @ensureConstructor name, o
     @body.spaced = yes
     @body.expressions.unshift @ctor unless @ctor instanceof Code
     if decl
       @body.expressions.unshift new Assign (new Value (new Literal name), [new Access new Literal 'name']), (new Literal "'#{name}'")
-    @body.expressions.push lname
+    @body.expressions.push lname unless o.google
     @body.expressions.unshift @directives...
     @addBoundFunctions o
 
@@ -980,9 +1035,12 @@ exports.Class = class Class extends Base
       params = call.variable.params or call.variable.base.params
       params.push new Param @superClass
 
-    klass = new Parens call, yes
-    klass = new Assign @variable, klass if @variable
-    klass.compile o
+    if o.google
+      @body.compile o
+    else
+      klass = new Parens call, yes
+      klass = new Assign @variable, klass if @variable
+      klass.compile o
 
 #### Assign
 
@@ -1202,11 +1260,47 @@ exports.Code = class Code extends Base
       else if not @static
         o.scope.parent.assign '_this', 'this'
     idt   = o.indent
-    code  = 'function'
-    code  += ' ' + @name if @ctor
+
+
+    # This is an array of JSDoc strings that should be prepended to the
+    # function declaration.
+    if o.google
+      jsDoc = []
+      #jsDoc = ("@param #{p.name.identifier}" for p in @params)
+    else
+      jsDoc = ''
+
+    isGoogleConstructor = o.google and @ctor
+    if isGoogleConstructor
+      jsDoc.push '@constructor'
+      if @ctorParent
+        parentClassName = @ctorParent.compile o
+        o.google.includes.push {name: parentClassName, alias: null}
+        jsDoc.push "@extends {#{parentClassName}}"
+      o.google.provides.push @name
+      code = "#{@name} = function" 
+    else
+      code  = 'function'
+      code  += ' ' + @name if @ctor
     code  += '(' + params.join(', ') + ') {'
     code  += "\n#{ @body.compileWithDeclarations o }\n#{@tab}" unless @body.isEmpty()
-    code  += '}'
+
+    # If there is any JSDoc associated with the function,
+    # prepend it to the function declaration.
+    # TODO: If the declaration is part of an assignment expression, then move
+    # the JSDoc before the assignment.
+    if jsDoc.length
+      jsDocLines = ("#{@tab} * #{line}" for line in jsDoc)
+      code = '/**\n' + jsDocLines.join('\n') + '\n */\n' + code
+
+    if isGoogleConstructor
+      code += '};'
+      if @ctorParent
+        extendsNode = new Extends (new Literal @name), @ctorParent
+        code += '\n' + extendsNode.compile(o) + ';'
+      code += '\n'
+    else
+      code  += '}'
     return @tab + code if @ctor
     if @front or (o.level >= LEVEL_ACCESS) then "(#{code})" else code
 

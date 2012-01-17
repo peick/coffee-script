@@ -1,5 +1,7 @@
 # Google Closure Tools
 # --------------------
+goog.require 'ns1'
+
 class ns1.Base
   constructor: ->
     @a = true
@@ -8,4 +10,5 @@ class ns1.Base
     1
 
 class ns1.Child extends ns1.Base
-
+  do_something: ->
+    ns1.ns2.static_variable

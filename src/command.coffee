@@ -37,6 +37,7 @@ SWITCHES = [
   ['-l', '--lint',            'pipe the compiled JavaScript through JavaScript Lint']
   ['-n', '--nodes',           'print out the parse tree that the parser produces']
   [      '--nodejs [ARGS]',   'pass options directly to the "node" binary']
+  [      '--google',          'format output for Google Closure Tools']
   ['-o', '--output [DIR]',    'set the output directory for compiled JavaScript']
   ['-p', '--print',           'print out the compiled JavaScript']
   ['-r', '--require [FILE*]', 'require a library before executing your script']
@@ -314,7 +315,11 @@ parseOptions = ->
 
 # The compile-time options to pass to the CoffeeScript compiler.
 compileOptions = (filename) ->
-  {filename, bare: opts.bare, header: opts.compile}
+  if opts.google
+    google = {includes: [], provides: []}
+  else
+    google = null
+  {filename, bare: opts.bare, header: opts.compile, google}
 
 # Start up a new Node.js instance with the arguments in `--nodejs` passed to
 # the `node` binary, preserving the other options.

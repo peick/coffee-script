@@ -229,9 +229,26 @@ runTests = (CoffeeScript) ->
     currentFile = filename = path.join 'test', file
     code = fs.readFileSync filename
     try
-      CoffeeScript.run code.toString(), {filename}
+      if not file.match /\/?google_closure.coffee/i
+        CoffeeScript.run code.toString(), {filename}
     catch error
       failures.push {filename, error}
+
+    # test with google closure tools option
+    # TODO 1 test in classes.coffee fails
+    try
+      if file.match /\/?classes\.coffee/i
+        continue
+      goog_options = {filename: '.', google: {includes: [], provides: []}}
+      goog_module = path.join fs.realpathSync(), 'test', 'modules', 'goog.js'
+      js_code = "require('#{ goog_module }');\n" \
+              + CoffeeScript.compile code.toString(), goog_options
+      module._compile js_code
+    catch error
+      failures.push {filename, error}
+      console.log filename
+      console.log error.stack
+
   return !failures.length
 
 
