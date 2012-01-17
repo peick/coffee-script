@@ -10,15 +10,14 @@
     |`-..________ ..-'|              | |___| (_) | | | ||  __/  __/
     |                 |               \_____\___/|_| |_| \___|\___|
     |                 ;--.
-    |                (__  \            _____           _       _
-    |                 | )  )          / ____|         (_)     | |
-    |                 |/  /          | (___   ___ _ __ _ _ __ | |_
+    |    Google      (__  \            _____           _       _
+    |    Closure      | )  )          / ____|         (_)     | |
+    |    flavour      |/  /          | (___   ___ _ __ _ _ __ | |_
     |                 (  /            \___ \ / __| '__| | '_ \| __|
     |                 |/              ____) | (__| |  | | |_) | |_
     |                 |              |_____/ \___|_|  |_| .__/ \__|
      `-.._________..-'                                  | |
                                                         |_|
-
 
   CoffeeScript is a little language that compiles into JavaScript.
 
@@ -44,8 +43,11 @@
   If you'd like to chat, drop by #coffeescript on Freenode IRC,
   or on webchat.freenode.net.
 
-  The source repository:
-  git://github.com/jashkenas/coffee-script.git
-
   All contributors are listed here:
   http://github.com/jashkenas/coffee-script/contributors
+
+  This is a special fork of the coffeescript to support google closure tools
+
+  The source repository:
+  git://github.com/peick/coffee-script.git
+
