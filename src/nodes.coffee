@@ -667,7 +667,6 @@ exports.Extends = class Extends extends Base
     else
       inheritsFunction = new Value(new Literal utility 'extends')
     new Call(inheritsFunction, [@child, @parent]).compile o
-    #new Call(new Value(new Literal utility 'extends'), [@child, @parent]).compile o
 
 #### Access
 
@@ -1028,7 +1027,7 @@ exports.Class = class Class extends Base
 
     call  = Closure.wrap @body
 
-    if @parent
+    if @parent and not o.google
       @superClass = new Literal o.scope.freeVariable 'super', no
       @body.expressions.unshift new Extends lname, @superClass
       call.args.push @parent
@@ -1266,7 +1265,6 @@ exports.Code = class Code extends Base
     # function declaration.
     if o.google
       jsDoc = []
-      #jsDoc = ("@param #{p.name.identifier}" for p in @params)
     else
       jsDoc = ''
 
