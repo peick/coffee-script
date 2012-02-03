@@ -604,6 +604,13 @@ exports.Call = class Call extends Base
           obj = null
     nodes
 
+  isGoogRequire: ->
+    return @variable instanceof Value and @variable.base.value == 'goog' and
+           @variable.properties.length == 1 and
+           @variable.properties[0] instanceof Access and
+           @variable.properties[0].name.value == 'require' and
+           @args.length == 1 and @args[0].isString()
+
   # Compile a vanilla function call.
   compileNode: (o) ->
     @variable?.front = @front
@@ -613,6 +620,11 @@ exports.Call = class Call extends Base
     args = (arg.compile o, LEVEL_LIST for arg in args).join ', '
     if @isSuper
       @superReference(o) + ".call(this#{ args and ', ' + args })"
+    else if o.google and @isGoogRequire()
+      arg_value = @args[0].base.value
+      pkg_name  = arg_value.substring(1, arg_value.length - 1)
+      o.google.includes.push {name: pkg_name, alias: null}
+      ''
     else
       (if @isNew then 'new ' else '') + @variable.compile(o, LEVEL_ACCESS) + "(#{args})"
 
