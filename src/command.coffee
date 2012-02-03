@@ -70,9 +70,8 @@ exports.run = ->
   return compileStdio()                  if opts.stdio
   return compileScript null, sources[0]  if opts.eval
   return require './repl'                unless sources.length
-  if opts.run
-    opts.literals = sources.splice(1).concat opts.literals
-  process.argv = process.argv[0..1].concat opts.literals
+  literals = if opts.run then sources.splice 1 else []
+  process.argv = process.argv[0..1].concat literals
   process.argv[0] = 'coffee'
   process.execPath = require.main.filename
   for source in sources
@@ -137,7 +136,7 @@ compileScript = (file, input, base) ->
   catch err
     CoffeeScript.emit 'failure', err, task
     return if CoffeeScript.listeners('failure').length
-    return printLine err.message if o.watch
+    return printLine err.message + '\x07' if o.watch
     printWarn err instanceof Error and err.stack or "ERROR: #{err}"
     process.exit 1
 
