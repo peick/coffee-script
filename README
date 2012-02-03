@@ -34,6 +34,9 @@
   Compile a script:
   coffee -c /path/to/script.coffee
 
+  Compile a script using google closure environment:
+  coffee --google -c /path/to/script.coffee
+
   For documentation, usage, and examples, see:
   http://coffeescript.org/
 
