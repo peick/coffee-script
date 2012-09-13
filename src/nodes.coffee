@@ -277,25 +277,15 @@ exports.Block = class Block extends Base
           when provides.indexOf(inc.name) == -1)
       includesJs = includesJs.join '\n'
 
-      aliases = (inc for inc in includes when inc.alias)
-      aliases.sort comparator
+      # aliases = (inc for inc in includes when inc.alias)
+      # aliases.sort comparator
       idt = @tab + TAB
-      aliases = ("#{idt}var #{inc.alias} = #{inc.name};" for inc in aliases)
-      aliases = aliases.join '\n'
+      # aliases = ("#{idt}var #{inc.alias} = #{inc.name};" for inc in aliases)
+      # aliases = aliases.join '\n'
 
-      code = """
-             #{providesJs}
+      prelude += "#{providesJs}\n\n#{includesJs}\n"
 
-             #{includesJs}
-
-             goog.scope(function() {
-             #{aliases}
-             #{code}
-
-             }); // close goog.scope()
-             """
-
-    return code if o.bare
+    return "#{prelude} #{code}" if o.bare
     "#{prelude}(function() {\n#{code}\n}).call(this);\n"
 
   # Compile the expressions body for the contents of a function, with
@@ -1032,7 +1022,7 @@ exports.Class = class Class extends Base
     @ensureConstructor name, o
     @body.spaced = yes
     @body.expressions.unshift @ctor unless @ctor instanceof Code
-    if decl
+    if decl and not o.google
       @body.expressions.unshift new Assign (new Value (new Literal name), [new Access new Literal 'name']), (new Literal "'#{name}'")
     @body.expressions.push lname unless o.google
     @body.expressions.unshift @directives...

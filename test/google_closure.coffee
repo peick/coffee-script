@@ -2,6 +2,8 @@
 # --------------------
 goog.require 'ns1'
 
+local_variable = 17
+
 class ns1.Base
   constructor: ->
     @a = true
